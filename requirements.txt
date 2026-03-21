@@ -1,0 +1,20 @@
+# FastAPI and server
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.9.0
+pydantic-settings>=2.5.0
+
+# Google Gemini
+google-genai>=1.0.0
+
+# Pinecone
+pinecone>=5.0.0
+
+# Firebase
+firebase-admin>=6.5.0
+
+# Performance
+orjson>=3.10.0
+
+# Development
+python-dotenv>=1.0.0
