@@ -15,7 +15,12 @@ import { DonationPage } from './pages/DonationPage';
 const walletManager = new WalletManager({
   wallets: [
     WalletId.PERA,
-    WalletId.LUTE,
+    {
+      id: WalletId.LUTE,
+      options: {
+        siteName: 'FundMySkill'
+      }
+    }
   ],
   defaultNetwork: NetworkId.TESTNET,
 });

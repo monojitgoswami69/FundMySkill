@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useWallet } from '@txnlab/use-wallet-react';
 import algosdk from 'algosdk';
+import LuteConnect from 'lute-connect';
 
 // ── Contract config ──────────────────────────────────────────────────
 // UPDATE THIS after running deploy_testnet.py
@@ -11,6 +12,10 @@ const USDC_DECIMALS = 6;
 
 const ALGOD_URL = 'https://testnet-api.algonode.cloud';
 const ALGOD_TOKEN = '';
+
+// Shared Lute instance for signing
+const luteClient = new LuteConnect('FundMySkill');
+luteClient.forceWeb = true;
 
 function getAlgodClient() {
   return new algosdk.Algodv2(ALGOD_TOKEN, ALGOD_URL, '');
@@ -22,7 +27,14 @@ function getAppAddress(): string {
 
 export function DonationPage() {
   // ── Wallet state ───────────────────────────────────────────────────
-  const { wallets, activeAddress, transactionSigner, activeWallet } = useWallet();
+  const { wallets, activeAddress: useWalletAddress, transactionSigner: useWalletSigner, activeWallet } = useWallet();
+
+  // Lute direct connection state (fallback when extension doesn't work)
+  const [luteAddress, setLuteAddress] = useState<string | null>(null);
+  const connectingRef = useRef(false);
+
+  // Use either use-wallet address or direct lute address
+  const activeAddress = useWalletAddress || luteAddress;
 
   // ── UI state ───────────────────────────────────────────────────────
   const [showWalletModal, setShowWalletModal] = useState(false);
@@ -85,26 +97,65 @@ export function DonationPage() {
 
   // ── Wallet connect ─────────────────────────────────────────────────
   const handleConnect = async (walletId: string) => {
+    // Prevent double execution from React StrictMode
+    if (connectingRef.current) return;
+    connectingRef.current = true;
+
     const wallet = wallets.find((w) => w.id === walletId);
+
+    if (walletId === 'lute') {
+      // Use direct lute-connect with web popup (extension has issues)
+      try {
+        const accounts = await luteClient.connect('testnet-v1.0');
+        if (accounts && accounts.length > 0) {
+          setLuteAddress(accounts[0]);
+          setShowWalletModal(false);
+        }
+      } catch (err) {
+        console.error('Lute connect error:', err);
+        setTxError(`Failed to connect Lute: ${err instanceof Error ? err.message : String(err)}`);
+        setTxStatus('error');
+        setShowWalletModal(false);
+      } finally {
+        connectingRef.current = false;
+      }
+      return;
+    }
+
+    // For other wallets (Pera), use use-wallet
     if (wallet) {
       try {
         await wallet.connect();
         setShowWalletModal(false);
       } catch (err) {
         console.error('Wallet connect error:', err);
+        setTxError(`Failed to connect ${wallet.metadata.name}: ${err instanceof Error ? err.message : String(err)}`);
+        setTxStatus('error');
+        setShowWalletModal(false);
       }
     }
+    connectingRef.current = false;
   };
 
   const handleDisconnect = async () => {
     if (activeWallet) {
       await activeWallet.disconnect();
     }
+    // Clear direct Lute connection
+    setLuteAddress(null);
   };
 
   // ── Donation transaction ───────────────────────────────────────────
   const handleDonate = async () => {
-    if (!activeAddress || !transactionSigner) {
+    if (!activeAddress) {
+      setTxError('Please connect your wallet first');
+      setTxStatus('error');
+      return;
+    }
+
+    // Check if we have a way to sign (either use-wallet or direct Lute)
+    const isDirectLute = !!luteAddress;
+    if (!isDirectLute && !useWalletSigner) {
       setTxError('Please connect your wallet first');
       setTxStatus('error');
       return;
@@ -156,16 +207,33 @@ export function DonationPage() {
       // Group them atomically
       algosdk.assignGroupID([assetTransferTxn, appCallTxn]);
 
-      // Sign with wallet
-      const encodedTxns = [assetTransferTxn, appCallTxn].map((txn) => txn.toByte());
+      let signedTxns: Uint8Array[];
 
-      const signedTxns = await transactionSigner(
-        encodedTxns.map((t) => algosdk.decodeUnsignedTransaction(t)),
-        [0, 1]
-      );
+      if (isDirectLute) {
+        // Sign with direct Lute connection
+        const txnsToSign = [assetTransferTxn, appCallTxn].map(txn => ({
+          txn: btoa(String.fromCharCode(...txn.toByte())),
+        }));
+        const signedB64 = await luteClient.signTxns(txnsToSign);
+        signedTxns = signedB64.map((b64: string) => {
+          const binary = atob(b64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          return bytes;
+        });
+      } else {
+        // Sign with use-wallet transaction signer
+        const encodedTxns = [assetTransferTxn, appCallTxn].map((txn) => txn.toByte());
+        signedTxns = await useWalletSigner!(
+          encodedTxns.map((t) => algosdk.decodeUnsignedTransaction(t)),
+          [0, 1]
+        );
+      }
 
       // Submit
-      const { txid } = await client.sendRawTransaction(signedTxns.map((s) => s)).do();
+      const { txid } = await client.sendRawTransaction(signedTxns).do();
       await algosdk.waitForConfirmation(client, txid, 4);
 
       setTxId(txid);
