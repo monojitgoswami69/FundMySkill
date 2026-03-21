@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
+from fastapi import HTTPException
 from google import genai
 from google.genai import types
 
@@ -13,9 +14,20 @@ class GeminiService:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.client = genai.Client(api_key=settings.gemini_api_key)
+        self._client = None
         self.embedding_model = settings.gemini_embedding_model
         self.generation_model = settings.gemini_generation_model
+
+    @property
+    def client(self):
+        if self._client is None:
+            if not self.settings.gemini_api_key or self.settings.gemini_api_key == "test_key":
+                raise HTTPException(
+                    status_code=503,
+                    detail="Gemini API key not configured. Set GEMINI_API_KEY in .env",
+                )
+            self._client = genai.Client(api_key=self.settings.gemini_api_key)
+        return self._client
 
     async def embed_text(self, text: str) -> list[float]:
         """Generate embedding for a single text."""
@@ -25,6 +37,7 @@ class GeminiService:
             lambda: self.client.models.embed_content(
                 model=self.embedding_model,
                 contents=text,
+                config=types.EmbedContentConfig(output_dimensionality=768),
             ),
         )
         return list(result.embeddings[0].values)

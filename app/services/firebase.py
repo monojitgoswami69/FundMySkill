@@ -1,7 +1,10 @@
+import json
+import os
 from datetime import datetime, timezone
 
 import firebase_admin
 from firebase_admin import credentials, firestore
+from fastapi import HTTPException
 
 from app.config import Settings
 
@@ -13,17 +16,34 @@ class FirebaseService:
         self.settings = settings
         self._db = None
         self._initialized = False
+        self._init_error: str | None = None
 
     def _get_db(self):
         """Initialize Firebase and get Firestore client."""
+        if self._init_error:
+            raise HTTPException(status_code=503, detail=f"Firebase not configured: {self._init_error}")
+
         if not self._initialized:
+            cred_path = self.settings.firebase_credentials_path
+            if not cred_path or not os.path.exists(cred_path):
+                self._init_error = f"Credentials file not found: {cred_path}"
+                raise HTTPException(status_code=503, detail=f"Firebase not configured: {self._init_error}")
+
             try:
                 firebase_admin.get_app()
             except ValueError:
-                cred = credentials.Certificate(self.settings.firebase_credentials_path)
+                cred = credentials.Certificate(cred_path)
+
+                # Extract project_id from credentials if not set in env
+                project_id = self.settings.firebase_project_id
+                if not project_id:
+                    with open(cred_path, encoding="utf-8") as f:
+                        cred_data = json.load(f)
+                        project_id = cred_data.get("project_id")
+
                 firebase_admin.initialize_app(
                     cred,
-                    {"projectId": self.settings.firebase_project_id},
+                    {"projectId": project_id} if project_id else None,
                 )
             self._db = firestore.client()
             self._initialized = True

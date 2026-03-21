@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from pinecone import Pinecone, ServerlessSpec
 
 from app.config import Settings
@@ -10,9 +11,20 @@ class PineconeService:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
-        self.pc = Pinecone(api_key=settings.pinecone_api_key)
+        self._pc = None
         self.index_name = settings.pinecone_index_name
         self._index = None
+
+    @property
+    def pc(self):
+        if self._pc is None:
+            if not self.settings.pinecone_api_key or self.settings.pinecone_api_key == "test_key":
+                raise HTTPException(
+                    status_code=503,
+                    detail="Pinecone API key not configured. Set PINECONE_API_KEY in .env",
+                )
+            self._pc = Pinecone(api_key=self.settings.pinecone_api_key)
+        return self._pc
 
     def _get_index(self):
         """Get or create the Pinecone index."""

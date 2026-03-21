@@ -14,7 +14,6 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
 
     # Pre-warm connections (services are lazily initialized on first use)
-    # The lru_cache decorators ensure single instances
 
     yield
 
