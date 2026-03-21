@@ -10,6 +10,7 @@ import { LearningInterfacePage } from './pages/LearningInterfacePage';
 import { CourseQuizPage } from './pages/CourseQuizPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { DonationPage } from './pages/DonationPage';
+import { CourseUploadPage } from './pages/CourseUploadPage';
 
 // ── Wallet Manager ──────────────────────────────────────────────────
 const walletManager = new WalletManager({
@@ -32,7 +33,7 @@ function AppLayout() {
   const isQuizView = location.pathname.startsWith('/quiz');
 
   // These pages have their own complete layout (nav, sidebar, etc.)
-  const isStandalonePage = isLandingPage || isQuizView || location.pathname === '/donate';
+  const isStandalonePage = isLandingPage || isQuizView || location.pathname === '/donate' || location.pathname === '/upload-course';
 
   // Lesson view has side nav + top nav but also a right chat panel
   const showSideNav = !isStandalonePage && !isLessonView;
@@ -46,6 +47,7 @@ function AppLayout() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/donate" element={<DonationPage />} />
           <Route path="/quiz/:quizId" element={<CourseQuizPage />} />
+          <Route path="/upload-course" element={<CourseUploadPage />} />
         </Routes>
       </div>
     );
