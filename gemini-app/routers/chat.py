@@ -3,10 +3,10 @@ import json
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.dependencies import get_rag_service
-from app.models.requests import ChatRequest
-from app.models.responses import ChatResponse, RetrievedChunk, StreamEventType
-from app.services.rag import RAGService
+from dependencies import get_rag_service
+from models.requests import ChatRequest
+from models.responses import ChatResponse, RetrievedChunk, StreamEventType
+from services.rag import RAGService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 

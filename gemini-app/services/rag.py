@@ -1,12 +1,12 @@
 import uuid
 from collections.abc import AsyncGenerator
 
-from app.models.requests import MetadataFilter
-from app.models.responses import ChunkMetadata, RetrievedChunk
-from app.services.chunker import ChunkerService
-from app.services.firebase import FirebaseService
-from app.services.gemini import GeminiService
-from app.services.pinecone import PineconeService
+from models.requests import MetadataFilter
+from models.responses import ChunkMetadata, RetrievedChunk
+from services.chunker import ChunkerService
+from services.firebase import FirebaseService
+from services.gemini import GeminiService
+from services.pinecone import PineconeService
 
 
 class RAGService:

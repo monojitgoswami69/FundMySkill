@@ -38,6 +38,83 @@ class MockFirestore:
             self._data[name] = {}
         return MockCollection(self._data, name, self._subcollections)
 
+    def collection_group(self, name: str) -> "MockCollectionGroup":
+        """Mock implementation of collection_group"""
+        return MockCollectionGroup(self._data, name, self._subcollections)
+
+
+class MockCollectionGroup:
+    """Mock collection group for querying across subcollections"""
+
+    def __init__(self, data: dict, name: str, subcollections: dict):
+        self._data = data
+        self._name = name
+        self._subcollections = subcollections
+        self._filters: list[tuple] = []
+
+    def where(self, field: str, op: str, value: Any) -> "MockCollectionGroup":
+        new_group = MockCollectionGroup(self._data, self._name, self._subcollections)
+        new_group._filters = self._filters + [(field, op, value)]
+        return new_group
+
+    def stream(self):
+        """Return all documents from subcollections with this name"""
+        results = []
+
+        # Search through all subcollections
+        for subcol_key, subcol_data in self._subcollections.items():
+            # Check if this subcollection matches the name we're looking for
+            if subcol_key.endswith(f"/{self._name}"):
+                for doc_id, doc_data in subcol_data.items():
+                    # Apply filters
+                    match = True
+                    for field, op, value in self._filters:
+                        # Special handling for __name__ filters (document path)
+                        if field == "__name__":
+                            doc_path = f"{subcol_key}/{doc_id}"
+                            if op == ">=":
+                                if doc_path < value:
+                                    match = False
+                            elif op == "<":
+                                if doc_path >= value:
+                                    match = False
+                        else:
+                            doc_value = doc_data.get(field)
+                            if op == "==":
+                                if doc_value != value:
+                                    match = False
+                            elif op == ">=":
+                                if doc_value is None or doc_value < value:
+                                    match = False
+                            elif op == "<":
+                                if doc_value is None or doc_value >= value:
+                                    match = False
+
+                    if match:
+                        results.append(MockCollectionGroupDoc(doc_id, doc_data, subcol_key))
+
+        return results
+
+
+class MockCollectionGroupDoc:
+    """Mock document from collection group with reference path"""
+
+    def __init__(self, doc_id: str, data: dict, path: str):
+        self._id = doc_id
+        self._data = data
+        self._path = path
+
+    @property
+    def id(self) -> str:
+        return self._id
+
+    @property
+    def reference(self):
+        return type('obj', (object,), {'path': f"{self._path}/{self._id}"})()
+
+    def to_dict(self) -> dict:
+        return self._data
+
 
 class MockCollection:
     def __init__(self, data: dict, name: str, subcollections: dict):
@@ -224,6 +301,10 @@ class FirestoreDB:
 
     def collection(self, name: str):
         return self._db.collection(name)
+
+    def collection_group(self, name: str):
+        """Query across all subcollections with the given name"""
+        return self._db.collection_group(name)
 
     def get_all(self, doc_refs: list) -> list:
         """Batch fetch multiple documents at once."""

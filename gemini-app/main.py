@@ -3,8 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import get_settings
-from app.routers import chat_router, documents_router
+from config import get_settings
+from routers import chat_router, documents_router
 
 
 @asynccontextmanager

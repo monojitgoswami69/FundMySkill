@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import get_rag_service
-from app.models.requests import DocumentIngestRequest
-from app.models.responses import DocumentMetadata, IngestResponse
-from app.services.rag import RAGService
+from dependencies import get_rag_service
+from models.requests import DocumentIngestRequest
+from models.responses import DocumentMetadata, IngestResponse
+from services.rag import RAGService
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 

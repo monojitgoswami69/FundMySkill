@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 from pinecone import Pinecone, ServerlessSpec
 
-from app.config import Settings
+from config import Settings
 
 
 class PineconeService:

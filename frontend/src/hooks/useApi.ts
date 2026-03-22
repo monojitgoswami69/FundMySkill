@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { courseApi, progressApi, quizApi, aiApi, userApi } from '../services/api';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { courseApi, progressApi, quizApi, aiApi, userApi, geminiRagApi } from '../services/api';
 import type {
   Course,
   CourseDetail,
@@ -7,45 +8,21 @@ import type {
   EnrolledCourse,
   Quiz,
   QuizResult,
-  TutorChatResponse,
   ChatMessage,
   User,
   UserStats,
 } from '../types/api';
 
-// Generic fetch hook
-function useFetch<T>(
-  fetchFn: () => Promise<T>,
-  deps: unknown[] = []
-): {
-  data: T | null;
-  loading: boolean;
-  error: string | null;
-  refetch: () => void;
-} {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetch = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fetchFn();
-      setData(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  }, deps);
-
-  useEffect(() => {
-    fetch();
-  }, [fetch]);
-
-  return { data, loading, error, refetch: fetch };
-}
+// Query keys for cache management
+export const queryKeys = {
+  courses: (filters?: Record<string, any>) => ['courses', filters] as const,
+  course: (id: string) => ['course', id] as const,
+  courseProgress: (courseId: string, userId?: string) => ['courseProgress', courseId, userId] as const,
+  enrolledCourses: () => ['enrolledCourses'] as const,
+  quiz: (id: string) => ['quiz', id] as const,
+  user: () => ['user'] as const,
+  userStats: () => ['userStats'] as const,
+};
 
 // Courses hooks
 export function useCourses(filters?: {
@@ -53,17 +30,24 @@ export function useCourses(filters?: {
   level?: string;
   search?: string;
 }) {
-  return useFetch(
-    () => courseApi.list(filters),
-    [filters?.category, filters?.level, filters?.search]
-  );
+  return useQuery({
+    queryKey: queryKeys.courses(filters),
+    queryFn: () => courseApi.list(filters),
+    staleTime: 5 * 60 * 1000, // 5 minutes - course list doesn't change often
+  });
 }
 
 export function useCourse(courseId: string) {
-  return useFetch(() => courseApi.get(courseId), [courseId]);
+  return useQuery({
+    queryKey: queryKeys.course(courseId),
+    queryFn: () => courseApi.get(courseId),
+    enabled: !!courseId, // Only fetch if courseId exists
+    staleTime: 10 * 60 * 1000, // 10 minutes - course details rarely change
+  });
 }
 
 export function useEnroll() {
+  const queryClient = useQueryClient();
   const [enrolling, setEnrolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,6 +56,11 @@ export function useEnroll() {
     setError(null);
     try {
       const result = await courseApi.enroll(courseId);
+
+      // Invalidate relevant queries after enrollment
+      queryClient.invalidateQueries({ queryKey: queryKeys.enrolledCourses() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.courseProgress(courseId) });
+
       return result;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to enroll');
@@ -86,20 +75,35 @@ export function useEnroll() {
 
 // Progress hooks
 export function useCourseProgress(courseId: string) {
-  return useFetch(() => progressApi.getCourseProgress(courseId), [courseId]);
+  return useQuery({
+    queryKey: queryKeys.courseProgress(courseId),
+    queryFn: () => progressApi.getCourseProgress(courseId),
+    enabled: !!courseId,
+    staleTime: 2 * 60 * 1000, // 2 minutes - progress updates frequently
+  });
 }
 
 export function useEnrolledCourses() {
-  return useFetch(() => progressApi.getEnrolledCourses(), []);
+  return useQuery({
+    queryKey: queryKeys.enrolledCourses(),
+    queryFn: () => progressApi.getEnrolledCourses(),
+    staleTime: 3 * 60 * 1000, // 3 minutes
+  });
 }
 
 export function useCompleteLecture() {
+  const queryClient = useQueryClient();
   const [completing, setCompleting] = useState(false);
 
   const complete = async (courseId: string, lectureId: string) => {
     setCompleting(true);
     try {
       const result = await progressApi.completeLecture(courseId, lectureId);
+
+      // Invalidate progress queries after completion
+      queryClient.invalidateQueries({ queryKey: queryKeys.courseProgress(courseId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.enrolledCourses() });
+
       return result;
     } finally {
       setCompleting(false);
@@ -111,7 +115,12 @@ export function useCompleteLecture() {
 
 // Quiz hooks
 export function useQuiz(quizId: string) {
-  return useFetch(() => quizApi.get(quizId), [quizId]);
+  return useQuery({
+    queryKey: queryKeys.quiz(quizId),
+    queryFn: () => quizApi.get(quizId),
+    enabled: !!quizId,
+    staleTime: Infinity, // Quiz questions never change
+  });
 }
 
 export function useSubmitQuiz() {
@@ -136,24 +145,19 @@ export function useSubmitQuiz() {
   return { submit, submitting, result };
 }
 
-// AI Tutor hooks
+// AI Tutor hooks (connected to gemini-app backend on port 9999)
 export function useAiTutor(lectureId: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([]);
+  const [suggestedPrompts, setSuggestedPrompts] = useState<string[]>([
+    'Explain this concept',
+    'Give me an example',
+    'What are common mistakes?',
+  ]);
   const [sending, setSending] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
-  // Load session history on mount
-  useEffect(() => {
-    if (lectureId) {
-      aiApi.getSessionHistory(lectureId).then((res) => {
-        setMessages(res.messages || []);
-        setSessionId(res.session_id);
-      }).catch(() => {
-        // Start fresh if no history
-      });
-    }
-  }, [lectureId]);
+  // No session history loading - gemini-app doesn't persist sessions
+  // Messages are stored locally in component state
 
   const sendMessage = async (message: string) => {
     setSending(true);
@@ -167,19 +171,25 @@ export function useAiTutor(lectureId: string) {
     setMessages((prev) => [...prev, userMsg]);
 
     try {
-      const response = await aiApi.chat(lectureId, message);
+      // Use gemini-app RAG backend on port 9999
+      const response = await geminiRagApi.chat(message);
 
       // Add AI response
       const aiMsg: ChatMessage = {
         role: 'ai',
-        content: response.response,
+        content: response.answer,
         timestamp: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, aiMsg]);
-      setSuggestedPrompts(response.suggested_prompts);
-      setSessionId(response.session_id);
 
-      return response;
+      // Generate contextual suggested prompts based on the response
+      setSuggestedPrompts([
+        'Can you elaborate more?',
+        'What\'s the next step?',
+        'How does this relate to practice?',
+      ]);
+
+      return { response: response.answer, sources: response.sources };
     } catch (err) {
       // Remove optimistic message on error
       setMessages((prev) => prev.slice(0, -1));
@@ -209,9 +219,17 @@ export function useGenerateQuiz() {
 
 // User hooks
 export function useUser() {
-  return useFetch(() => userApi.getMe(), []);
+  return useQuery({
+    queryKey: queryKeys.user(),
+    queryFn: () => userApi.getMe(),
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
 }
 
 export function useUserStats() {
-  return useFetch(() => userApi.getStats(), []);
+  return useQuery({
+    queryKey: queryKeys.userStats(),
+    queryFn: () => userApi.getStats(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
 }

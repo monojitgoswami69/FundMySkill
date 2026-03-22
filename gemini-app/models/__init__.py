@@ -1,5 +1,5 @@
-from app.models.requests import ChatRequest, DocumentIngestRequest, MetadataFilter
-from app.models.responses import (
+from models.requests import ChatRequest, DocumentIngestRequest, MetadataFilter
+from models.responses import (
     ChatResponse,
     IngestResponse,
     RetrievedChunk,

@@ -27,7 +27,7 @@ export function CourseOverviewPage() {
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
 
   // Fetch course from API
-  const { data: course, loading } = useCourse(courseId || '');
+  const { data: course, isLoading: loading } = useCourse(courseId || '');
   const { enroll, enrolling } = useEnroll();
 
   const handleEnroll = async () => {

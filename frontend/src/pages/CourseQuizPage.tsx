@@ -1,14 +1,123 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useQuiz, useSubmitQuiz } from '../hooks/useApi';
 
-// Fallback options for when API is unavailable
-const fallbackOptions = [
-  { letter: 'A', text: 'The Semantic Parser Interface', isCorrect: true },
-  { letter: 'B', text: 'Probabilistic Logic Engines', isCorrect: false },
-  { letter: 'C', text: 'Neural-Symbolic Mapping Layer', isCorrect: false },
-  { letter: 'D', text: 'Hierarchical Temporal Memory Units', isCorrect: false },
-];
+// Hardcoded 10-question quiz for all quiz buttons
+const hardcodedQuiz = {
+  id: 'hardcoded-quiz-001',
+  title: 'Comprehensive Knowledge Assessment',
+  questions: [
+    {
+      id: 'q1',
+      question: 'Which architectural component is primarily responsible for the "Symbolic Grounding" problem in hybrid AI systems?',
+      options: [
+        { letter: 'A', text: 'The Semantic Parser Interface', isCorrect: true },
+        { letter: 'B', text: 'Probabilistic Logic Engines', isCorrect: false },
+        { letter: 'C', text: 'Neural-Symbolic Mapping Layer', isCorrect: false },
+        { letter: 'D', text: 'Hierarchical Temporal Memory Units', isCorrect: false },
+      ],
+      points: 2.0,
+    },
+    {
+      id: 'q2',
+      question: 'In the context of machine learning, what does the term "overfitting" refer to?',
+      options: [
+        { letter: 'A', text: 'When a model performs well on both training and test data', isCorrect: false },
+        { letter: 'B', text: 'When a model learns training data too well, including noise, and fails on new data', isCorrect: true },
+        { letter: 'C', text: 'When training takes longer than expected', isCorrect: false },
+        { letter: 'D', text: 'When the dataset is too large for the model', isCorrect: false },
+      ],
+      points: 2.0,
+    },
+    {
+      id: 'q3',
+      question: 'Which algorithm is most commonly used for finding the shortest path in a weighted graph?',
+      options: [
+        { letter: 'A', text: 'Depth-First Search (DFS)', isCorrect: false },
+        { letter: 'B', text: 'Breadth-First Search (BFS)', isCorrect: false },
+        { letter: 'C', text: 'Dijkstra\'s Algorithm', isCorrect: true },
+        { letter: 'D', text: 'Binary Search', isCorrect: false },
+      ],
+      points: 2.0,
+    },
+    {
+      id: 'q4',
+      question: 'What is the primary purpose of the attention mechanism in transformer models?',
+      options: [
+        { letter: 'A', text: 'To reduce computational complexity', isCorrect: false },
+        { letter: 'B', text: 'To allow the model to focus on relevant parts of the input sequence', isCorrect: true },
+        { letter: 'C', text: 'To compress the model size', isCorrect: false },
+        { letter: 'D', text: 'To speed up training convergence', isCorrect: false },
+      ],
+      points: 2.0,
+    },
+    {
+      id: 'q5',
+      question: 'In database systems, what does ACID stand for?',
+      options: [
+        { letter: 'A', text: 'Automated, Concurrent, Isolated, Durable', isCorrect: false },
+        { letter: 'B', text: 'Atomicity, Consistency, Isolation, Durability', isCorrect: true },
+        { letter: 'C', text: 'Abstract, Complete, Integrated, Distributed', isCorrect: false },
+        { letter: 'D', text: 'Asynchronous, Cached, Indexed, Dynamic', isCorrect: false },
+      ],
+      points: 2.0,
+    },
+    {
+      id: 'q6',
+      question: 'Which data structure follows the Last-In-First-Out (LIFO) principle?',
+      options: [
+        { letter: 'A', text: 'Queue', isCorrect: false },
+        { letter: 'B', text: 'Stack', isCorrect: true },
+        { letter: 'C', text: 'Linked List', isCorrect: false },
+        { letter: 'D', text: 'Hash Table', isCorrect: false },
+      ],
+      points: 2.0,
+    },
+    {
+      id: 'q7',
+      question: 'What is the time complexity of binary search on a sorted array?',
+      options: [
+        { letter: 'A', text: 'O(n)', isCorrect: false },
+        { letter: 'B', text: 'O(n²)', isCorrect: false },
+        { letter: 'C', text: 'O(log n)', isCorrect: true },
+        { letter: 'D', text: 'O(1)', isCorrect: false },
+      ],
+      points: 2.0,
+    },
+    {
+      id: 'q8',
+      question: 'In neural networks, what is the main purpose of the activation function?',
+      options: [
+        { letter: 'A', text: 'To normalize input data', isCorrect: false },
+        { letter: 'B', text: 'To introduce non-linearity into the network', isCorrect: true },
+        { letter: 'C', text: 'To reduce the number of parameters', isCorrect: false },
+        { letter: 'D', text: 'To speed up forward propagation', isCorrect: false },
+      ],
+      points: 2.0,
+    },
+    {
+      id: 'q9',
+      question: 'Which principle states that software entities should be open for extension but closed for modification?',
+      options: [
+        { letter: 'A', text: 'Single Responsibility Principle', isCorrect: false },
+        { letter: 'B', text: 'Liskov Substitution Principle', isCorrect: false },
+        { letter: 'C', text: 'Open/Closed Principle', isCorrect: true },
+        { letter: 'D', text: 'Interface Segregation Principle', isCorrect: false },
+      ],
+      points: 2.0,
+    },
+    {
+      id: 'q10',
+      question: 'What does REST stand for in the context of web APIs?',
+      options: [
+        { letter: 'A', text: 'Remote Execution of Server Tasks', isCorrect: false },
+        { letter: 'B', text: 'Representational State Transfer', isCorrect: true },
+        { letter: 'C', text: 'Real-time Embedded System Technology', isCorrect: false },
+        { letter: 'D', text: 'Rapid Enterprise Service Toolkit', isCorrect: false },
+      ],
+      points: 2.0,
+    },
+  ],
+};
 
 export function CourseQuizPage() {
   const navigate = useNavigate();
@@ -18,10 +127,11 @@ export function CourseQuizPage() {
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(15 * 60); // 15 minutes in seconds
   const [startTime] = useState(Date.now());
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ correct_count: number; total_questions: number; accuracy_percentage: number } | null>(null);
 
-  // Fetch quiz from API
-  const { data: quizData, loading } = useQuiz(quizId || '');
-  const { submit, submitting, result } = useSubmitQuiz();
+  // Always use the hardcoded quiz
+  const questions = hardcodedQuiz.questions;
 
   // Timer effect
   useEffect(() => {
@@ -44,19 +154,9 @@ export function CourseQuizPage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Use API data or fallback
-  const questions = quizData?.questions || [
-    {
-      id: 'q1',
-      question: 'Which architectural component is primarily responsible for the "Symbolic Grounding" problem in the context of hybrid AI systems?',
-      options: fallbackOptions,
-      points: 2.0,
-    }
-  ];
-
   const totalQuestions = questions.length;
   const currentQuestion = questions[currentQuestionIdx];
-  const options = currentQuestion?.options || fallbackOptions;
+  const options = currentQuestion?.options || [];
 
   // Build questions map for sidebar
   const questionsMap = questions.map((q: { id: string }, idx: number) => ({
@@ -88,14 +188,26 @@ export function CourseQuizPage() {
   };
 
   const handleSubmit = async () => {
-    if (!quizId) return;
-    const timeTaken = Math.floor((Date.now() - startTime) / 1000);
-    try {
-      await submit(quizId, answers, timeTaken);
-      // Result will be available after submission
-    } catch (err) {
-      console.error('Failed to submit quiz:', err);
-    }
+    setSubmitting(true);
+    // Local scoring based on hardcoded quiz
+    let correctCount = 0;
+    questions.forEach(q => {
+      const userAnswer = answers[q.id];
+      const correctOption = q.options.find(opt => opt.isCorrect);
+      if (userAnswer && correctOption && userAnswer === correctOption.letter) {
+        correctCount++;
+      }
+    });
+
+    // Simulate small delay for UX
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    setResult({
+      correct_count: correctCount,
+      total_questions: questions.length,
+      accuracy_percentage: (correctCount / questions.length) * 100,
+    });
+    setSubmitting(false);
   };
 
   const handleClearAnswer = () => {
@@ -126,22 +238,6 @@ export function CourseQuizPage() {
           >
             Continue Learning
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#fafafc] flex items-center justify-center">
-        <div className="animate-pulse space-y-6 w-full max-w-3xl px-6">
-          <div className="h-8 bg-surface-container-high rounded w-1/2"></div>
-          <div className="h-24 bg-surface-container-high rounded-2xl"></div>
-          <div className="space-y-4">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="h-16 bg-surface-container-high rounded-2xl"></div>
-            ))}
-          </div>
         </div>
       </div>
     );

@@ -1,6 +1,7 @@
 // API Client for FundMySkill Backend
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const GEMINI_RAG_URL = import.meta.env.VITE_GEMINI_RAG_URL || 'http://localhost:9999';
 
 // Get the current user ID — prefers Firebase auth UID, falls back to mock
 function getActiveUserId(): string {
@@ -158,7 +159,7 @@ export const quizApi = {
     }>(`/api/quizzes/course/${courseId}`),
 };
 
-// AI API
+// AI API (main backend)
 export const aiApi = {
   chat: (lectureId: string, message: string) =>
     apiRequest<import('../types/api').TutorChatResponse>('/api/ai/tutor/chat', {
@@ -188,6 +189,28 @@ export const aiApi = {
       messages: import('../types/api').ChatMessage[];
       lecture_id: string;
     }>(`/api/ai/sessions/${getActiveUserId()}/${lectureId}`),
+};
+
+// Gemini RAG API (gemini-app backend on port 9999)
+export const geminiRagApi = {
+  chat: async (message: string): Promise<{ answer: string; sources: Array<{ content: string; source: string }> }> => {
+    const response = await fetch(`${GEMINI_RAG_URL}/chat/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: message,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Chat request failed' }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  },
 };
 
 // User API

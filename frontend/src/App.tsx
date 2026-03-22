@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { NetworkId, WalletId, WalletManager, WalletProvider } from '@txnlab/use-wallet-react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TopNavBar } from './components/layout/TopNavBar';
 import { SideNavBar } from './components/layout/SideNavBar';
 import { HomePage } from './pages/HomePage';
@@ -16,6 +17,20 @@ import { CourseUploadPage } from './pages/CourseUploadPage';
 import { CourseInsiderPage } from './pages/CourseInsiderPage';
 import { CertificateVerifyPage } from './pages/CertificateVerifyPage';
 import { AuthProvider, useAuth } from './services/AuthContext';
+
+// ── Query Client ────────────────────────────────────────────────────
+// Configure caching with React Query
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // Data stays fresh for 5 minutes
+      gcTime: 10 * 60 * 1000, // Cache persists for 10 minutes (formerly cacheTime)
+      retry: 1, // Retry failed requests once
+      refetchOnWindowFocus: false, // Don't refetch when window regains focus
+      refetchOnReconnect: true, // Refetch when connection is restored
+    },
+  },
+});
 
 // ── Wallet Manager ──────────────────────────────────────────────────
 const walletManager = new WalletManager({
@@ -105,12 +120,14 @@ function AppLayout() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <WalletProvider manager={walletManager}>
-        <Router>
-          <AppLayout />
-        </Router>
-      </WalletProvider>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <WalletProvider manager={walletManager}>
+          <Router>
+            <AppLayout />
+          </Router>
+        </WalletProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }

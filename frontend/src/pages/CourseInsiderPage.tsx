@@ -12,11 +12,11 @@ export function CourseInsiderPage() {
   const { user } = useAuth();
 
   // Fetch course and progress from API
-  const { data: apiCourse, loading: courseLoading } = useCourse(courseId || '');
-  const { data: progress, loading: progressLoading } = useCourseProgress(courseId || '');
+  const { data: apiCourse, isLoading: courseLoading } = useCourse(courseId || '');
+  const { data: progress, isLoading: progressLoading } = useCourseProgress(courseId || '');
 
   // Fallback to static data
-  const fallbackCourse = fallbackCourses.find((c) => c.id === courseId) || fallbackCourses[0];
+  const fallbackCourse = fallbackCourses.find((c) => c.id === courseId) || fallbackCourses[0] || null;
   const course = apiCourse || fallbackCourse;
 
   const [activeTab, setActiveTab] = useState<'overview' | 'resources' | 'ai-tutor' | 'assessments' | 'certificate'>('overview');
@@ -150,6 +150,18 @@ export function CourseInsiderPage() {
             ))}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (!course) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-12 min-h-[80vh] flex items-center justify-center flex-col">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">Course Not Found</h2>
+          <p className="text-gray-600 mb-6">We couldn't find the course you were looking for.</p>
+          <Link to="/my-courses" className="px-6 py-3 bg-[#5e81ac] text-white rounded-xl font-bold">
+            Back to My Courses
+          </Link>
       </div>
     );
   }

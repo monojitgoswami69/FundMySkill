@@ -6,7 +6,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from fastapi import HTTPException
 
-from app.config import Settings
+from config import Settings
 
 
 class FirebaseService:

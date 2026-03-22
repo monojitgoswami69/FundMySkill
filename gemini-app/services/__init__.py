@@ -1,8 +1,8 @@
-from app.services.chunker import ChunkerService
-from app.services.firebase import FirebaseService
-from app.services.gemini import GeminiService
-from app.services.pinecone import PineconeService
-from app.services.rag import RAGService
+from services.chunker import ChunkerService
+from services.firebase import FirebaseService
+from services.gemini import GeminiService
+from services.pinecone import PineconeService
+from services.rag import RAGService
 
 __all__ = [
     "ChunkerService",

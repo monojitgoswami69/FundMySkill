@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { courseApi } from '../services/api';
-import type { Course } from '../types/api';
+import { courseApi, progressApi } from '../services/api';
+import type { Course, EnrolledCourse } from '../types/api';
 
 export function StarRating({ stars }: { stars: number[] }) {
   return (
@@ -25,6 +25,7 @@ export const courses = fallbackCourses;
 
 export function CourseCataloguePage() {
   const [allCourses, setAllCourses] = useState<Course[]>([]);
+  const [enrolledCourseIds, setEnrolledCourseIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,20 +35,24 @@ export function CourseCataloguePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'popularity' | 'rating'>('popularity');
 
-  // Fetch all courses on mount
+  // Fetch all courses and enrolled courses on mount
   useEffect(() => {
-    const fetchCourses = async () => {
+    const fetchData = async () => {
       setLoading(true);
       try {
-        const data = await courseApi.list({ limit: 100 });
-        setAllCourses(data.courses);
+        const [coursesData, enrolledData] = await Promise.all([
+          courseApi.list({ limit: 100 }),
+          progressApi.getEnrolledCourses().catch(() => ({ enrolled_courses: [] })),
+        ]);
+        setAllCourses(coursesData.courses);
+        setEnrolledCourseIds(new Set(enrolledData.enrolled_courses.map((c: EnrolledCourse) => c.id)));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load courses');
       } finally {
         setLoading(false);
       }
     };
-    fetchCourses();
+    fetchData();
   }, []);
 
   // Get unique categories from courses
@@ -308,10 +313,14 @@ export function CourseCataloguePage() {
                   </div>
                   <div className="mt-auto pt-3 border-t border-outline-variant/10">
                     <Link
-                      to={`/courses/${course.id}`}
-                      className="w-full py-3 bg-[#2e3440] hover:bg-[#3b4252] flex items-center justify-center text-white text-[11px] font-black uppercase tracking-[0.15em] rounded-xl transition-all active:scale-[0.98] shadow-md shadow-black/5"
+                      to={enrolledCourseIds.has(course.id) ? `/insider/${course.id}` : `/courses/${course.id}`}
+                      className={`w-full py-3 flex items-center justify-center text-[11px] font-black uppercase tracking-[0.15em] rounded-xl transition-all active:scale-[0.98] shadow-md shadow-black/5 ${
+                        enrolledCourseIds.has(course.id)
+                          ? 'bg-primary/10 hover:bg-primary/20 text-primary'
+                          : 'bg-[#2e3440] hover:bg-[#3b4252] text-white'
+                      }`}
                     >
-                      Explore Course
+                      {enrolledCourseIds.has(course.id) ? 'Continue' : 'Explore Course'}
                     </Link>
                   </div>
                 </div>

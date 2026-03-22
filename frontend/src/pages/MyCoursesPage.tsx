@@ -8,18 +8,41 @@ export function MyCoursesPage() {
   const [selectedCompletion, setSelectedCompletion] = useState('All');
 
   // Fetch enrolled courses from API
-  const { data, loading, error } = useEnrolledCourses();
+  const { data, isLoading: loading, error } = useEnrolledCourses();
 
   // Use API data or show empty state
   const enrolledCourses = data?.enrolled_courses || [];
 
   // If no enrolled courses from API, use fallback for demo
-  const displayCourses = enrolledCourses.length > 0
+  const allCourses = enrolledCourses.length > 0
     ? enrolledCourses.map(ec => ({
         ...ec,
         image: ec.thumbnail_url || fallbackCourses.find(fc => fc.id === ec.id)?.image || 'https://via.placeholder.com/400x300',
+        level: fallbackCourses.find(fc => fc.id === ec.id)?.level || '',
       }))
     : [];
+
+  // Apply filters
+  const displayCourses = allCourses.filter(course => {
+    // Level filter
+    if (selectedLevel !== 'All') {
+      const courseLevel = course.level?.toLowerCase() || '';
+      if (courseLevel !== selectedLevel.toLowerCase()) {
+        return false;
+      }
+    }
+    // Completion filter
+    if (selectedCompletion !== 'All') {
+      const isCompleted = (course.progress_percentage || 0) >= 100;
+      if (selectedCompletion === 'Completed' && !isCompleted) {
+        return false;
+      }
+      if (selectedCompletion === 'Not Completed' && isCompleted) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   if (loading) {
     return (
@@ -40,7 +63,7 @@ export function MyCoursesPage() {
     );
   }
 
-  if (displayCourses.length === 0) {
+  if (allCourses.length === 0) {
     return (
       <div className="max-w-7xl mx-auto px-6 py-12 min-h-[80vh] flex flex-col items-center justify-center">
         <div className="flex flex-col items-center text-center gap-6 animate-fade-in">
@@ -124,7 +147,7 @@ export function MyCoursesPage() {
 
           <div className="flex justify-between items-center mb-6">
             <p className="text-sm font-medium text-on-surface-variant italic">
-              Showing <span className="text-primary font-bold">{displayCourses.length}</span> active modules
+              Showing <span className="text-primary font-bold">{displayCourses.length}</span>{allCourses.length !== displayCourses.length && <span> of {allCourses.length}</span>} modules
             </p>
             <div className="flex items-center gap-4">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sort By:</span>
@@ -135,6 +158,18 @@ export function MyCoursesPage() {
             </div>
           </div>
 
+          {displayCourses.length === 0 ? (
+            <div className="col-span-full text-center py-12">
+              <span className="material-symbols-outlined text-4xl text-on-surface-variant/40 mb-4 block">filter_list_off</span>
+              <p className="text-on-surface-variant">No courses match the selected filters.</p>
+              <button
+                onClick={() => { setSelectedLevel('All'); setSelectedCompletion('All'); }}
+                className="mt-4 text-primary font-bold text-sm hover:underline"
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {displayCourses.map((course) => (
               <div
@@ -191,6 +226,7 @@ export function MyCoursesPage() {
               </div>
             ))}
           </div>
+          )}
         </div>
       </div>
     </div>

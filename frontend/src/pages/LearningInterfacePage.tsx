@@ -10,8 +10,8 @@ export function LearningInterfacePage() {
   const [chatInput, setChatInput] = useState('');
 
   // Fetch course and progress from API
-  const { data: apiCourse, loading: courseLoading } = useCourse(courseId || '');
-  const { data: progress, loading: progressLoading } = useCourseProgress(courseId || '');
+  const { data: apiCourse, isLoading: courseLoading } = useCourse(courseId || '');
+  const { data: progress, isLoading: progressLoading } = useCourseProgress(courseId || '');
   const { complete: completeLecture, completing } = useCompleteLecture();
   const { generate: generateQuiz, generating: generatingQuiz } = useGenerateQuiz();
 
@@ -20,7 +20,7 @@ export function LearningInterfacePage() {
   const { messages, suggestedPrompts, sending, sendMessage } = useAiTutor(lectureId);
 
   // Fallback course
-  const fallbackCourse = fallbackCourses.find((c) => c.id === courseId) || fallbackCourses[0];
+  const fallbackCourse = fallbackCourses.find((c) => c.id === courseId) || fallbackCourses[0] || null;
   const course = apiCourse || fallbackCourse;
 
   // Get current module and lecture info
@@ -62,7 +62,18 @@ export function LearningInterfacePage() {
       </div>
     );
   }
-  
+
+  if (!course) {
+    return (
+      <div className="min-h-screen bg-[#fafafc] flex items-center justify-center flex-col">
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">Course or Lesson Not Found</h2>
+        <button onClick={() => navigate('/my-courses')} className="px-6 py-3 bg-[#5e81ac] text-white rounded-xl font-bold">
+          Back to Courses
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#fafafc] flex flex-col font-body relative overflow-x-hidden">
       {/* Top Banner/Nav */}
