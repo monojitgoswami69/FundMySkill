@@ -55,6 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser: User | null) => {
       if (firebaseUser) {
+        // Real Firebase user — clear demo session so real UID is used
+        localStorage.removeItem('fundmyskill_demo_session');
         localStorage.setItem('fundmyskill_firebase_uid', firebaseUser.uid);
         setUser({
           uid: firebaseUser.uid,
@@ -85,6 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // ── Real Firebase Authentication ──
       const credential = await signInWithEmailAndPassword(auth, email, password);
+      // Clear demo session — real user takes priority
+      localStorage.removeItem('fundmyskill_demo_session');
       localStorage.setItem('fundmyskill_firebase_uid', credential.user.uid);
       setUser({
         uid: credential.user.uid,

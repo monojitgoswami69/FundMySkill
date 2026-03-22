@@ -34,8 +34,12 @@ def rating_to_stars(rating: float) -> list[float]:
     return stars
 
 
-def format_price(price: float) -> str:
+def format_price(price) -> str:
     """Format price for display."""
+    try:
+        price = float(price)
+    except (ValueError, TypeError):
+        return "Free"
     if price == 0:
         return "Free"
     return f"${price:.2f}"
