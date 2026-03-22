@@ -79,6 +79,8 @@ export interface ModuleProgress {
   status: 'completed' | 'in-progress' | 'locked';
   completed_count: number;
   total_count: number;
+  completed_lectures: number;
+  total_lectures: number;
   lectures: LectureProgress[];
 }
 
@@ -90,6 +92,7 @@ export interface CourseProgress {
   total_lectures: number;
   completed_lectures: number;
   modules: ModuleProgress[];
+  quizzes?: any[];
 }
 
 export interface EnrolledCourse {
@@ -112,6 +115,7 @@ export interface QuizOption {
 export interface QuizQuestion {
   id: string;
   text: string;
+  question?: string;
   points: number;
   options: QuizOption[];
 }
@@ -136,6 +140,8 @@ export interface QuizResult {
   accuracy_percentage: number;
   correct_answers: Record<string, string>;
   time_taken_seconds: number;
+  correct_count?: number;
+  total_questions?: number;
 }
 
 export interface ChatMessage {

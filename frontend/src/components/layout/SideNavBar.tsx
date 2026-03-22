@@ -1,4 +1,5 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../services/AuthContext';
 
 const navItems = [
   { icon: 'dashboard', label: 'Dashboard', path: '/dashboard' },
@@ -9,6 +10,8 @@ const navItems = [
 
 export function SideNavBar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const isInsiderView = location.pathname.startsWith('/insider');
 
   const isActive = (path: string) => {
@@ -17,6 +20,11 @@ export function SideNavBar() {
     if (path === '/my-courses') return location.pathname === '/my-courses';
     if (path === '/profile') return location.pathname === '/profile';
     return false;
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
   };
 
   return (
@@ -66,7 +74,7 @@ export function SideNavBar() {
               />
             </Link>
             {!isInsiderView && (
-              <span className="text-[13px] font-bold text-[#2e3440] truncate max-w-[100px] font-headline uppercase tracking-wider">Alex Rivers</span>
+              <span className="text-[13px] font-bold text-[#2e3440] truncate max-w-[100px] font-headline uppercase tracking-wider">{user?.displayName || 'Guest'}</span>
             )}
           </div>
 
@@ -82,8 +90,8 @@ export function SideNavBar() {
 
         {/* Sign Out Button */}
         <div className={isInsiderView ? 'w-full flex justify-center' : 'px-1'}>
-          <Link 
-            to="/" 
+          <button 
+            onClick={handleSignOut}
             title="Sign Out"
             className={`flex items-center justify-center bg-[#2e3440] text-white hover:bg-[#3b4252] rounded-xl transition-all active:scale-[0.98] ${
               isInsiderView ? 'w-10 h-10' : 'w-full gap-2 py-3'
@@ -93,9 +101,10 @@ export function SideNavBar() {
             {!isInsiderView && (
               <span className="font-body font-bold text-[11.5px] uppercase tracking-[0.2em] whitespace-nowrap">Sign Out</span>
             )}
-          </Link>
+          </button>
         </div>
       </div>
     </aside>
   );
 }
+

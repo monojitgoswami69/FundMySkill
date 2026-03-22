@@ -1,11 +1,15 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { fallbackCourses } from './CourseCataloguePage';
 import { useCourse, useCourseProgress } from '../hooks/useApi';
+import { certificateApi, getUserId } from '../services/api';
+import { QRCodeSVG } from 'qrcode.react';
+import { useAuth } from '../services/AuthContext';
 
 export function CourseInsiderPage() {
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Fetch course and progress from API
   const { data: apiCourse, loading: courseLoading } = useCourse(courseId || '');
@@ -15,10 +19,14 @@ export function CourseInsiderPage() {
   const fallbackCourse = fallbackCourses.find((c) => c.id === courseId) || fallbackCourses[0];
   const course = apiCourse || fallbackCourse;
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'resources' | 'ai-tutor' | 'assessments'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'resources' | 'ai-tutor' | 'assessments' | 'certificate'>('overview');
   const [expandedSections, setExpandedSections] = useState<string[]>(['Study Notes']);
   const [selectedResources, setSelectedResources] = useState<string[]>([]);
   const [expandedModules, setExpandedModules] = useState<number[]>([3]);
+  const [certificateData, setCertificateData] = useState<any>(null);
+  const [generatingCert, setGeneratingCert] = useState(false);
+  const [certError, setCertError] = useState<string | null>(null);
+  const [certLoading, setCertLoading] = useState(false);
 
   const loading = courseLoading || progressLoading;
 
@@ -68,12 +76,53 @@ export function CourseInsiderPage() {
     { title: 'Mind Maps', icon: 'account_tree', color: 'teal' },
   ];
 
+  const isCourseCompleted = progressPercentage >= 100;
+
   const navItems = [
     { id: 'overview', icon: 'dashboard', label: 'Overview' },
     { id: 'resources', icon: 'folder_open', label: 'Resources' },
     { id: 'ai-tutor', icon: 'smart_toy', label: 'AI Tutor' },
     { id: 'assessments', icon: 'assignment', label: 'Assessments' },
+    { id: 'certificate', icon: 'workspace_premium', label: 'Certificate' },
   ] as const;
+
+  // Auto-fetch existing certificate on mount when course is completed
+  useEffect(() => {
+    if (isCourseCompleted && courseId && !certificateData) {
+      setCertLoading(true);
+      certificateApi.get(getUserId(), courseId)
+        .then((result) => {
+          if (result.success && result.certificate) {
+            setCertificateData(result.certificate);
+          }
+        })
+        .catch(() => {
+          // No existing certificate — user needs to generate one
+        })
+        .finally(() => setCertLoading(false));
+    }
+  }, [isCourseCompleted, courseId]);
+
+  const handleGenerateCertificate = async () => {
+    setGeneratingCert(true);
+    setCertError(null);
+    try {
+      const result = await certificateApi.generate({
+        user_id: getUserId(),
+        course_id: courseId || '',
+        holder_name: user?.displayName || 'Alex Johnson',
+      });
+      if (result.success && result.certificate) {
+        setCertificateData(result.certificate);
+      } else {
+        setCertError(result.message || 'Failed to generate certificate');
+      }
+    } catch (err: any) {
+      setCertError(err.message || 'Failed to generate certificate');
+    } finally {
+      setGeneratingCert(false);
+    }
+  };
 
   const assessments = progress?.quizzes?.length ? progress.quizzes.map((q: { id: string; title: string; score?: number; status: string; due_date?: string }, idx: number) => ({
     id: idx + 1,
@@ -120,19 +169,33 @@ export function CourseInsiderPage() {
         </div>
         
         <div className="flex flex-col gap-1 pr-4">
-          {navItems.map((item) => (
-            <button 
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-3 w-full px-6 py-3.5 text-sm font-bold transition-all ${
-                activeTab === item.id
-                  ? 'text-[#5e81ac] bg-[#f0f7ff] rounded-r-2xl shadow-sm border-l-4 border-[#5e81ac]'
-                  : 'text-[#2e3440] hover:translate-x-1 hover:text-[#5e81ac]'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[18px]">{item.icon}</span> {item.label}
-            </button>
-          ))}
+          {navItems.map((item) => {
+            const isCertTab = item.id === 'certificate';
+            const isDisabled = isCertTab && !isCourseCompleted;
+            return (
+              <button 
+                key={item.id}
+                onClick={() => !isDisabled && setActiveTab(item.id)}
+                disabled={isDisabled}
+                className={`flex items-center gap-3 w-full px-6 py-3.5 text-sm font-bold transition-all ${
+                  isDisabled
+                    ? 'text-[#4c566a]/30 cursor-not-allowed opacity-50'
+                    : activeTab === item.id
+                      ? 'text-[#5e81ac] bg-[#f0f7ff] rounded-r-2xl shadow-sm border-l-4 border-[#5e81ac]'
+                      : 'text-[#2e3440] hover:translate-x-1 hover:text-[#5e81ac]'
+                }`}
+                title={isDisabled ? 'Complete 100% of the course to unlock certificate' : ''}
+              >
+                <span className="material-symbols-outlined text-[18px]">{item.icon}</span> {item.label}
+                {isCertTab && !isCourseCompleted && (
+                  <span className="material-symbols-outlined text-[14px] ml-auto">lock</span>
+                )}
+                {isCertTab && isCourseCompleted && (
+                  <span className="ml-auto w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </aside>
 
@@ -440,7 +503,7 @@ export function CourseInsiderPage() {
               </div>
 
               <div className="relative space-y-4">
-                {assessments.map((test) => (
+                {assessments.map((test: { id: number; title: string; date: string; status: string; score: string | null }) => (
                   <div key={test.id} className={`flex items-start gap-8 group ${test.status === 'upcoming' ? 'opacity-80' : ''}`}>
                     <div className="flex flex-col items-center pt-2">
                       <div className={`w-3 h-3 rounded-full shadow-sm ${
@@ -489,6 +552,183 @@ export function CourseInsiderPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* CERTIFICATE TAB */}
+          {activeTab === 'certificate' && isCourseCompleted && (
+            <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {/* Loading existing certificate */}
+              {certLoading && (
+                <div className="flex flex-col items-center justify-center py-16 gap-4">
+                  <svg className="animate-spin h-10 w-10 text-[#5e81ac]" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <p className="text-sm font-bold text-[#4c566a]">Loading certificate...</p>
+                </div>
+              )}
+
+              {/* Congratulations Banner */}
+              {!certLoading && (
+              <>
+              <section className="relative overflow-hidden bg-gradient-to-br from-[#2e3440] via-[#3b4252] to-[#434c5e] p-10 rounded-[2.5rem] shadow-xl">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-[#5e81ac]/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#88c0d0]/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl" />
+                <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+                  <div className="w-20 h-20 rounded-[1.5rem] bg-gradient-to-br from-[#ebcb8b] to-[#d08770] flex items-center justify-center shadow-lg shadow-[#ebcb8b]/20">
+                    <span className="material-symbols-outlined text-white text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>emoji_events</span>
+                  </div>
+                  <div className="flex-1 text-center md:text-left">
+                    <h2 className="text-3xl font-black text-white font-headline tracking-tight mb-2">
+                      {certificateData ? 'Your Certificate is Ready! 🏆' : 'Congratulations! 🎉'}
+                    </h2>
+                    <p className="text-[#d8dee9]/80 text-sm leading-relaxed max-w-xl">
+                      {certificateData
+                        ? <>Your course completion certificate for <span className="text-[#88c0d0] font-bold">{course.title}</span> has been generated and verified.</>
+                        : <>You have successfully completed <span className="text-[#88c0d0] font-bold">{course.title}</span> with 100% mastery. Press generate now to receive your certificate.</>
+                      }
+                    </p>
+                  </div>
+                  {!certificateData && (
+                    <button
+                      onClick={handleGenerateCertificate}
+                      disabled={generatingCert}
+                      className={`px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-[0.15em] transition-all shadow-lg ${
+                        generatingCert
+                          ? 'bg-[#4c566a] text-[#d8dee9]/60 cursor-wait'
+                          : 'bg-gradient-to-r from-[#ebcb8b] to-[#d08770] text-[#2e3440] hover:scale-105 hover:shadow-xl hover:shadow-[#ebcb8b]/30 active:scale-95'
+                      }`}
+                    >
+                      {generatingCert ? (
+                        <span className="flex items-center gap-3">
+                          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                          Generating...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <span className="material-symbols-outlined text-[20px]">verified</span>
+                          Generate Certificate
+                        </span>
+                      )}
+                    </button>
+                  )}
+                </div>
+                {certError && (
+                  <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-300 text-sm">
+                    {certError}
+                  </div>
+                )}
+              </section>
+
+              {/* Rendered Certificate */}
+              {certificateData && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-2xl font-black font-headline text-[#2e3440] tracking-tight">Your Certificate</h3>
+                    <a
+                      href={`/verify?id=${certificateData.certificate_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 px-5 py-2.5 bg-[#5e81ac]/10 text-[#5e81ac] rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-[#5e81ac]/20 transition-all"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+                      Verify Link
+                    </a>
+                  </div>
+
+                  {/* Certificate Card */}
+                  <div className="relative bg-white rounded-[2rem] shadow-[0_20px_60px_rgba(46,52,64,0.1)] border-2 border-[#ebcb8b]/40 overflow-hidden" id="certificate-card">
+                    {/* Gold decorative border */}
+                    <div className="absolute inset-0 border-[12px] border-transparent" style={{ borderImage: 'linear-gradient(135deg, #ebcb8b, #d08770, #ebcb8b, #d08770) 1' }} />
+                    
+                    {/* Corner decorations */}
+                    <div className="absolute top-6 left-6 w-16 h-16 border-t-4 border-l-4 border-[#ebcb8b]/60 rounded-tl-lg" />
+                    <div className="absolute top-6 right-6 w-16 h-16 border-t-4 border-r-4 border-[#ebcb8b]/60 rounded-tr-lg" />
+                    <div className="absolute bottom-6 left-6 w-16 h-16 border-b-4 border-l-4 border-[#ebcb8b]/60 rounded-bl-lg" />
+                    <div className="absolute bottom-6 right-6 w-16 h-16 border-b-4 border-r-4 border-[#ebcb8b]/60 rounded-br-lg" />
+
+                    <div className="relative z-10 p-16 text-center">
+                      {/* Logo & Platform */}
+                      <div className="flex items-center justify-center gap-3 mb-8">
+                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#5e81ac] to-[#81a1c1] flex items-center justify-center shadow-md">
+                          <span className="material-symbols-outlined text-white text-2xl">school</span>
+                        </div>
+                        <span className="text-2xl font-black text-[#2e3440] font-headline tracking-tight">FundMySkill</span>
+                      </div>
+
+                      {/* Title */}
+                      <h2 className="text-[10px] font-black uppercase tracking-[0.5em] text-[#ebcb8b] mb-4">Certificate of Completion</h2>
+                      <div className="w-24 h-0.5 bg-gradient-to-r from-transparent via-[#ebcb8b] to-transparent mx-auto mb-8" />
+                      
+                      {/* Awarded To */}
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#4c566a]/60 mb-3">This is to certify that</p>
+                      <h1 className="text-5xl font-black text-[#2e3440] font-headline mb-2 tracking-tight" style={{ fontFamily: 'Georgia, serif' }}>
+                        {certificateData.holder_name}
+                      </h1>
+                      <div className="w-48 h-[1px] bg-[#4c566a]/20 mx-auto mb-8" />
+
+                      {/* Course */}
+                      <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#4c566a]/60 mb-3">has successfully completed the course</p>
+                      <h3 className="text-2xl font-black text-[#5e81ac] font-headline mb-8 tracking-tight">{certificateData.course_title}</h3>
+
+                      {/* Details Grid */}
+                      <div className="flex justify-center gap-16 mb-10">
+                        <div className="text-center">
+                          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-[#4c566a]/50 mb-1">Issue Date</p>
+                          <p className="text-sm font-bold text-[#2e3440]">{new Date(certificateData.issue_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-[#4c566a]/50 mb-1">Instructor</p>
+                          <p className="text-sm font-bold text-[#2e3440]">{certificateData.instructor_name}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-[#4c566a]/50 mb-1">Duration</p>
+                          <p className="text-sm font-bold text-[#2e3440]">12 Weeks</p>
+                        </div>
+                      </div>
+
+                      {/* Signatures */}
+                      <div className="flex justify-between items-end px-12 mb-8">
+                        <div className="text-center">
+                          <div className="w-40 border-b-2 border-[#4c566a]/20 mb-2 pb-1">
+                            <p className="text-lg italic text-[#5e81ac]" style={{ fontFamily: 'Georgia, serif' }}>{certificateData.instructor_name}</p>
+                          </div>
+                          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-[#4c566a]/50">Course Instructor</p>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#ebcb8b] to-[#d08770] flex items-center justify-center shadow-lg mb-2">
+                            <span className="material-symbols-outlined text-white text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>workspace_premium</span>
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="w-40 border-b-2 border-[#4c566a]/20 mb-2 pb-1">
+                            <p className="text-lg italic text-[#5e81ac]" style={{ fontFamily: 'Georgia, serif' }}>Dr. Sarah Mitchell</p>
+                          </div>
+                          <p className="text-[9px] font-black uppercase tracking-[0.3em] text-[#4c566a]/50">Director of Education</p>
+                        </div>
+                      </div>
+
+                      {/* QR Code */}
+                      <div className="flex flex-col items-center gap-3 mt-2">
+                        <p className="text-[9px] font-black uppercase tracking-[0.3em] text-[#4c566a]/50">Scan to Verify</p>
+                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100">
+                          <QRCodeSVG
+                            value={`${window.location.origin}/verify?id=${certificateData.certificate_id}`}
+                            size={140}
+                            bgColor="#ffffff"
+                            fgColor="#2e3440"
+                            level="M"
+                          />
+                        </div>
+                        <p className="text-[10px] font-bold text-[#4c566a]/40">{window.location.origin}/verify?id={certificateData.certificate_id.substring(0, 12)}...</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              </>
+              )}
             </div>
           )}
 

@@ -2,8 +2,21 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
-// Generate or retrieve a persistent mock user ID
-function getMockUserId(): string {
+// Get the current user ID — prefers Firebase auth UID, falls back to mock
+function getActiveUserId(): string {
+  // Check for demo session
+  const demoSession = localStorage.getItem('fundmyskill_demo_session');
+  if (demoSession === 'true') {
+    return 'demo-user-alex';
+  }
+
+  // Check for Firebase auth UID (set by AuthContext)
+  const firebaseUid = localStorage.getItem('fundmyskill_firebase_uid');
+  if (firebaseUid) {
+    return firebaseUid;
+  }
+
+  // Fallback to mock user ID
   let userId = localStorage.getItem('mockUserId');
   if (!userId) {
     userId = `user-${Math.random().toString(36).substring(2, 11)}`;
@@ -12,7 +25,8 @@ function getMockUserId(): string {
   return userId;
 }
 
-export const getUserId = getMockUserId;
+export const getUserId = getActiveUserId;
+
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | undefined>;
@@ -39,7 +53,7 @@ async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Pr
   // Add default headers
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
-    'X-Mock-User-Id': getMockUserId(),
+    'X-Mock-User-Id': getActiveUserId(),
     ...(fetchOptions.headers || {}),
   };
 
@@ -81,7 +95,7 @@ export const courseApi = {
       `/api/courses/${courseId}/enroll`,
       {
         method: 'POST',
-        body: JSON.stringify({ user_id: getMockUserId() }),
+        body: JSON.stringify({ user_id: getActiveUserId() }),
       }
     ),
 };
@@ -90,7 +104,7 @@ export const courseApi = {
 export const progressApi = {
   getCourseProgress: (courseId: string) =>
     apiRequest<import('../types/api').CourseProgress>(`/api/progress/${courseId}`, {
-      params: { userId: getMockUserId() },
+      params: { userId: getActiveUserId() },
     }),
 
   completeLecture: (courseId: string, lectureId: string) =>
@@ -99,7 +113,7 @@ export const progressApi = {
       {
         method: 'POST',
         body: JSON.stringify({
-          user_id: getMockUserId(),
+          user_id: getActiveUserId(),
           course_id: courseId,
           lecture_id: lectureId,
         }),
@@ -111,7 +125,7 @@ export const progressApi = {
       user_id: string;
       enrolled_courses: import('../types/api').EnrolledCourse[];
       total: number;
-    }>(`/api/progress/enrolled/${getMockUserId()}`),
+    }>(`/api/progress/enrolled/${getActiveUserId()}`),
 };
 
 // Quiz API
@@ -123,7 +137,7 @@ export const quizApi = {
     apiRequest<import('../types/api').QuizResult>('/api/quizzes/submit', {
       method: 'POST',
       body: JSON.stringify({
-        user_id: getMockUserId(),
+        user_id: getActiveUserId(),
         quiz_id: quizId,
         answers,
         time_taken_seconds: timeTakenSeconds,
@@ -150,7 +164,7 @@ export const aiApi = {
     apiRequest<import('../types/api').TutorChatResponse>('/api/ai/tutor/chat', {
       method: 'POST',
       body: JSON.stringify({
-        user_id: getMockUserId(),
+        user_id: getActiveUserId(),
         lecture_id: lectureId,
         message,
       }),
@@ -162,7 +176,7 @@ export const aiApi = {
       {
         method: 'POST',
         body: JSON.stringify({
-          user_id: getMockUserId(),
+          user_id: getActiveUserId(),
           lecture_id: lectureId,
         }),
       }
@@ -173,7 +187,7 @@ export const aiApi = {
       session_id: string | null;
       messages: import('../types/api').ChatMessage[];
       lecture_id: string;
-    }>(`/api/ai/sessions/${getMockUserId()}/${lectureId}`),
+    }>(`/api/ai/sessions/${getActiveUserId()}/${lectureId}`),
 };
 
 // User API
@@ -181,13 +195,73 @@ export const userApi = {
   getMe: () => apiRequest<import('../types/api').User>('/api/users/me'),
 
   getStats: () =>
-    apiRequest<import('../types/api').UserStats>(`/api/users/${getMockUserId()}/stats`),
+    apiRequest<import('../types/api').UserStats>(`/api/users/${getActiveUserId()}/stats`),
 
   update: (updates: Partial<import('../types/api').User>) =>
-    apiRequest<import('../types/api').User>(`/api/users/${getMockUserId()}`, {
+    apiRequest<import('../types/api').User>(`/api/users/${getActiveUserId()}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     }),
+};
+
+// Certificate API
+export const certificateApi = {
+  generate: (data: { user_id: string; course_id: string; holder_name: string }) =>
+    apiRequest<{
+      success: boolean;
+      certificate: {
+        id: string;
+        certificate_id: string;
+        user_id: string;
+        course_id: string;
+        course_title: string;
+        holder_name: string;
+        instructor_name: string;
+        issue_date: string;
+        completion_date: string;
+        credential_url: string;
+      } | null;
+      message: string;
+    }>('/api/certificates/generate', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  verify: (certificateId: string) =>
+    apiRequest<{
+      verified: boolean;
+      certificate: {
+        id: string;
+        certificate_id: string;
+        user_id: string;
+        course_id: string;
+        course_title: string;
+        holder_name: string;
+        instructor_name: string;
+        issue_date: string;
+        completion_date: string;
+        credential_url: string;
+      } | null;
+      message: string;
+    }>(`/api/certificates/verify/${certificateId}`),
+
+  get: (userId: string, courseId: string) =>
+    apiRequest<{
+      success: boolean;
+      certificate: {
+        id: string;
+        certificate_id: string;
+        user_id: string;
+        course_id: string;
+        course_title: string;
+        holder_name: string;
+        instructor_name: string;
+        issue_date: string;
+        completion_date: string;
+        credential_url: string;
+      } | null;
+      message: string;
+    }>(`/api/certificates/user/${userId}/course/${courseId}`),
 };
 
 // Health check

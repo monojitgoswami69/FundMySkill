@@ -43,7 +43,7 @@ def calculate_module_status(
 @router.get("/{course_id}")
 async def get_course_progress(
     course_id: str,
-    user_id: str = Query(..., description="User ID"),
+    user_id: str = Query(..., alias="userId", description="User ID"),
 ) -> dict:
     """
     Get user's progress for a course with module statuses.
@@ -297,15 +297,8 @@ async def get_enrolled_courses(user_id: str) -> dict:
 
         course_data = course_doc.to_dict()
 
-        # Get creator info
-        creator_id = course_data.get("creator_id", "")
-        instructor_name = "Unknown Instructor"
-
-        if creator_id:
-            creator_doc = db.collection("users").document(creator_id).get()
-            if creator_doc.exists:
-                creator_data = creator_doc.to_dict()
-                instructor_name = creator_data.get("name", instructor_name)
+        # Get embedded instructor info
+        instructor_name = course_data.get("instructor_name", "Unknown Instructor")
 
         enrollment_date = prog_data.get("enrollment_date")
         if enrollment_date:

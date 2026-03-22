@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import courses, progress, quizzes, ai, donations, users
+from app.routers import courses, progress, quizzes, ai, donations, users, certificates
 
 # Initialize settings
 settings = get_settings()
@@ -38,6 +38,7 @@ app.include_router(quizzes.router)
 app.include_router(ai.router)
 app.include_router(donations.router)
 app.include_router(users.router)
+app.include_router(certificates.router)
 
 
 @app.get("/")
@@ -74,6 +75,11 @@ async def startup_event():
     # Initialize database
     db = get_firestore()
     print(f"Database initialized: {'Mock' if db.is_mock else 'Firebase'}")
+
+    # Seed demo data when using mock database
+    if db.is_mock:
+        from app.seed_demo import seed_demo_data
+        seed_demo_data()
 
     # Initialize AI service
     ai = get_ai_service()

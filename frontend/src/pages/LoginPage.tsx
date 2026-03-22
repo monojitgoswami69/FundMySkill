@@ -1,6 +1,38 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../services/AuthContext';
 
 export function LoginPage() {
+  const navigate = useNavigate();
+  const { signIn, error: authError } = useAuth();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLocalError(null);
+
+    if (!email.trim() || !password.trim()) {
+      setLocalError('Please enter both email and password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await signIn(email, password);
+      navigate('/dashboard');
+    } catch {
+      // Error is already set in AuthContext
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const displayError = localError || authError;
+
   return (
     <>
       {/* TopNavBar for Landing */}
@@ -60,7 +92,6 @@ export function LoginPage() {
               </div>
             </div>
 
-
           </div>
         </section>
 
@@ -71,14 +102,26 @@ export function LoginPage() {
               <h2 className="font-headline text-3xl font-bold text-on-surface mb-2">Welcome Back</h2>
               <p className="text-on-surface-variant font-body">Sign in to continue your learning journey</p>
             </div>
-            <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+
+            {/* Error message */}
+            {displayError && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 flex items-start gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <span className="material-symbols-outlined text-red-500 text-[18px] shrink-0 mt-0.5">error</span>
+                <span>{displayError}</span>
+              </div>
+            )}
+
+            <form className="space-y-6" onSubmit={handleSubmit}>
               <div>
-                <label className="block font-label text-sm font-medium text-on-surface-variant mb-2 ml-1" htmlFor="id">User ID</label>
+                <label className="block font-label text-sm font-medium text-on-surface-variant mb-2 ml-1" htmlFor="email">Email</label>
                 <input
                   className="w-full h-12 px-4 rounded-xl border-none bg-surface-container-low focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary-fixed transition-all text-on-surface"
-                  id="id"
-                  placeholder="Enter your registered ID"
-                  type="text"
+                  id="email"
+                  placeholder="Enter your email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
                 />
               </div>
               <div>
@@ -91,20 +134,42 @@ export function LoginPage() {
                   id="password"
                   placeholder="••••••••"
                   type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
                 />
               </div>
               <div className="flex items-center gap-2 px-1">
                 <input className="w-4 h-4 rounded text-primary focus:ring-primary-fixed border-outline-variant" id="remember" type="checkbox" />
                 <label className="text-sm text-on-surface-variant select-none" htmlFor="remember">Keep me logged in</label>
               </div>
-              <Link
-                to="/dashboard"
-                className="w-full h-14 bg-gradient-to-br from-primary to-primary-container text-on-primary font-silkscreen font-bold rounded-full transition-all hover:shadow-lg hover:shadow-primary/20 active:scale-[0.98] transform flex items-center justify-center"
+              <button
+                type="submit"
+                disabled={loading}
+                className={`w-full h-14 bg-gradient-to-br from-primary to-primary-container text-on-primary font-silkscreen font-bold rounded-full transition-all hover:shadow-lg hover:shadow-primary/20 active:scale-[0.98] transform flex items-center justify-center ${
+                  loading ? 'opacity-70 cursor-wait' : ''
+                }`}
               >
-                Sign In
-              </Link>
+                {loading ? (
+                  <span className="flex items-center gap-3">
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                    Signing in...
+                  </span>
+                ) : (
+                  'Sign In'
+                )}
+              </button>
             </form>
-            <div className="mt-10 flex flex-col items-center gap-6">
+
+            {/* Demo credentials hint */}
+            <div className="mt-6 p-3 bg-[#5e81ac]/5 border border-[#5e81ac]/15 rounded-xl text-center">
+              <p className="text-[11px] font-bold text-[#5e81ac]/70">
+                <span className="material-symbols-outlined text-[14px] align-middle mr-1">info</span>
+                Demo: <span className="font-mono bg-[#5e81ac]/10 px-1.5 py-0.5 rounded">test@gmail.com</span> / <span className="font-mono bg-[#5e81ac]/10 px-1.5 py-0.5 rounded">test1234</span>
+              </p>
+            </div>
+
+            <div className="mt-8 flex flex-col items-center gap-6">
               <div className="w-full flex items-center gap-4">
                 <div className="flex-1 h-px bg-outline-variant/30"></div>
                 <span className="text-xs font-label text-outline uppercase tracking-widest">or connect via</span>
@@ -125,8 +190,6 @@ export function LoginPage() {
 
         </section>
       </main>
-
-
     </>
   );
 }
