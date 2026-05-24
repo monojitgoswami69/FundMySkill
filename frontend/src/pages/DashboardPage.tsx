@@ -91,6 +91,20 @@ export function DashboardPage() {
 
         {/* Right Column: Deadlines & Stats */}
         <div className="lg:col-span-4 space-y-8">
+          {/* Quick Quiz Button */}
+          <Link to="/quiz/mock-quiz" className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl p-6 text-white shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all block group">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="font-headline font-bold text-xl mb-2">Test Your Knowledge</h3>
+                <p className="text-purple-100 text-sm">10-question assessment with instant feedback</p>
+              </div>
+              <span className="material-symbols-outlined text-3xl text-purple-200 group-hover:scale-110 transition-transform" style={{ fontVariationSettings: "'FILL' 1" }}>quiz</span>
+            </div>
+            <div className="flex items-center gap-2 text-purple-100 text-sm font-bold group-hover:gap-3 transition-all mt-4">
+              Start Quiz <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </div>
+          </Link>
+
           {/* Upcoming Deadlines */}
           <div className="bg-surface-container-low rounded-xl p-6">
             <h3 className="font-headline font-bold text-xl text-on-surface mb-6">Upcoming Deadlines</h3>
